@@ -8,11 +8,16 @@ on:
 
 jobs:
   build-android:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
 
       - name: Cache Buildozer
         uses: actions/cache@v4
@@ -20,14 +25,40 @@ jobs:
           path: |
             ~/.buildozer
             .buildozer
+            ~/.gradle
           key: buildozer-${{ runner.os }}-${{ hashFiles('buildozer.spec') }}
           restore-keys: |
             buildozer-${{ runner.os }}-
 
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            autoconf \
+            automake \
+            build-essential \
+            ccache \
+            cmake \
+            git \
+            libffi-dev \
+            libltdl-dev \
+            libncurses5-dev \
+            libncursesw5-dev \
+            libssl-dev \
+            libtool \
+            openjdk-17-jdk \
+            pkg-config \
+            unzip \
+            zip \
+            zlib1g-dev
+
+      - name: Install Buildozer
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install buildozer==1.5.0 cython==0.29.37 virtualenv
+
       - name: Build debug APK
-        uses: ArtemSBulgakov/buildozer-action@v1
-        with:
-          command: buildozer android debug
+        run: buildozer android debug
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
