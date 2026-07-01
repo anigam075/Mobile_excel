@@ -70,11 +70,6 @@ class Workbook:
     active_sheet_index: int = 0
     dirty: bool = False
 
-    @classmethod
-    def blank_csv(cls):
-        rows = [["Name", "Value"], ["", ""]]
-        return cls(sheets=[Sheet(name="Sheet1", rows=rows)], file_type="csv")
-
     @property
     def display_name(self):
         if self.path:

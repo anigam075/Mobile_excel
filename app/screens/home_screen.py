@@ -1,4 +1,5 @@
 from pathlib import Path
+from urllib.parse import unquote, urlparse
 
 from kivy.app import App
 from kivy.metrics import dp
@@ -44,14 +45,6 @@ class HomeScreen(Screen):
         )
         open_button.bind(on_release=lambda *_: self.open_file_picker())
 
-        new_button = Button(
-            text="Create New CSV",
-            size_hint_y=None,
-            height=dp(52),
-            background_color=(0.18, 0.45, 0.36, 1),
-        )
-        new_button.bind(on_release=lambda *_: App.get_running_app().create_blank_csv())
-
         self.message_label = Label(
             text="",
             font_size="14sp",
@@ -64,7 +57,6 @@ class HomeScreen(Screen):
         root.add_widget(title)
         root.add_widget(subtitle)
         root.add_widget(open_button)
-        root.add_widget(new_button)
         root.add_widget(self.message_label)
         self.add_widget(root)
 
@@ -116,4 +108,24 @@ class HomeScreen(Screen):
     def _open_android_selection(self, selection):
         if not selection:
             return
-        App.get_running_app().open_workbook(selection[0])
+        selected = str(selection[0])
+        running_app = App.get_running_app()
+
+        try:
+            selected = self._resolve_android_selection(selected, running_app.user_data_dir)
+        except Exception as exc:
+            self.show_message(f"Could not open selected file: {exc}")
+            return
+
+        running_app.open_workbook(selected)
+
+    def _resolve_android_selection(self, selected, target_dir):
+        if selected.startswith("content://"):
+            from app.services.android_file_service import copy_android_content_uri
+
+            return copy_android_content_uri(selected, target_dir)
+
+        if selected.startswith("file://"):
+            return unquote(urlparse(selected).path)
+
+        return selected

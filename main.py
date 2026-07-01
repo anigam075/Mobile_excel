@@ -5,7 +5,6 @@ os.environ.setdefault("KIVY_NO_FILELOG", "1")
 from kivy.app import App
 from kivy.uix.screenmanager import ScreenManager
 
-from app.models.workbook import Workbook
 from app.screens.editor_screen import EditorScreen
 from app.screens.home_screen import HomeScreen
 from app.services.file_service import FileServiceError, load_workbook, save_workbook
@@ -33,12 +32,6 @@ class MobileXLApp(App):
             self.home_screen.show_message(str(exc))
             return
 
-        self.editor_screen.set_workbook(self.workbook)
-        self.manager.current = "editor"
-
-    def create_blank_csv(self):
-        self.workbook = Workbook.blank_csv()
-        self.current_path = None
         self.editor_screen.set_workbook(self.workbook)
         self.manager.current = "editor"
 

@@ -2,7 +2,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from app.models.workbook import Workbook, column_name
+from app.models.workbook import Sheet, Workbook, column_name
 from app.services.file_service import load_workbook, save_workbook
 
 
@@ -15,7 +15,10 @@ class WorkbookTests(unittest.TestCase):
     def test_csv_round_trip(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "sample.csv"
-            workbook = Workbook.blank_csv()
+            workbook = Workbook(
+                sheets=[Sheet(name="Sheet1", rows=[["Metric", "Amount"], ["", ""]])],
+                file_type="csv",
+            )
             workbook.set_cell(1, 0, "Revenue")
             workbook.set_cell(1, 1, "1200")
 
@@ -33,9 +36,10 @@ class WorkbookTests(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "sample.xlsx"
-            workbook = Workbook.blank_csv()
-            workbook.file_type = "xlsx"
-            workbook.sheets[0].name = "Data"
+            workbook = Workbook(
+                sheets=[Sheet(name="Data", rows=[["Metric", "Amount"], ["", ""]])],
+                file_type="xlsx",
+            )
             workbook.set_cell(1, 0, "Cost")
             workbook.set_cell(1, 1, "900")
 
