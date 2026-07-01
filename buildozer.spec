@@ -9,6 +9,7 @@ version = 0.1.0
 requirements = python3,kivy==2.3.1,openpyxl==3.1.5,plyer==2.1.0
 orientation = portrait
 fullscreen = 0
+p4a.branch = v2024.01.21
 
 android.permissions = READ_EXTERNAL_STORAGE,WRITE_EXTERNAL_STORAGE
 android.api = 35

@@ -26,9 +26,7 @@ jobs:
             ~/.buildozer
             .buildozer
             ~/.gradle
-          key: buildozer-${{ runner.os }}-${{ hashFiles('buildozer.spec') }}
-          restore-keys: |
-            buildozer-${{ runner.os }}-
+          key: buildozer-${{ runner.os }}-p4a-v2024-01-21-${{ hashFiles('buildozer.spec') }}
 
       - name: Install system dependencies
         run: |
