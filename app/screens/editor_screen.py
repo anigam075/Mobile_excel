@@ -28,24 +28,35 @@ class EditorScreen(Screen):
         self.editor_input = None
         self.status_label = None
         self.save_as_input = None
+        self.toolbar = None
+        self.back_button = None
+        self.save_button = None
+        self.save_as_button = None
+        self.edit_bar = None
+        self.apply_button = None
+        self.row_actions = None
+        self._cell_width = dp(128)
+        self._row_header_width = dp(54)
+        self._cell_height = dp(42)
+        self._last_metrics = None
         self._build()
 
     def _build(self):
         root = BoxLayout(orientation="vertical", spacing=dp(4))
 
-        toolbar = BoxLayout(size_hint_y=None, height=dp(52), spacing=dp(6), padding=(dp(6), dp(6)))
-        back = Button(text="<", size_hint_x=None, width=dp(46))
-        back.bind(on_release=lambda *_: self._go_home())
-        self.title_label = Label(text="No file", halign="left", valign="middle", color=(0.08, 0.1, 0.13, 1))
+        self.toolbar = BoxLayout(size_hint_y=None, height=dp(52), spacing=dp(6), padding=(dp(6), dp(6)))
+        self.back_button = Button(text="<", size_hint_x=None, width=dp(46))
+        self.back_button.bind(on_release=lambda *_: self._go_home())
+        self.title_label = Label(text="No file", halign="left", valign="middle", color=(0.88, 0.92, 0.98, 1))
         self.title_label.bind(size=lambda instance, size: setattr(instance, "text_size", size))
-        save = Button(text="Save", size_hint_x=None, width=dp(74))
-        save.bind(on_release=lambda *_: self._save())
-        save_as = Button(text="Save As", size_hint_x=None, width=dp(92))
-        save_as.bind(on_release=lambda *_: self._open_save_as_popup())
-        toolbar.add_widget(back)
-        toolbar.add_widget(self.title_label)
-        toolbar.add_widget(save)
-        toolbar.add_widget(save_as)
+        self.save_button = Button(text="Save", size_hint_x=None, width=dp(74))
+        self.save_button.bind(on_release=lambda *_: self._save())
+        self.save_as_button = Button(text="Save As", size_hint_x=None, width=dp(92))
+        self.save_as_button.bind(on_release=lambda *_: self._open_save_as_popup())
+        self.toolbar.add_widget(self.back_button)
+        self.toolbar.add_widget(self.title_label)
+        self.toolbar.add_widget(self.save_button)
+        self.toolbar.add_widget(self.save_as_button)
 
         self.sheet_bar = BoxLayout(size_hint_y=None, height=dp(44), spacing=dp(6), padding=(dp(6), 0))
 
@@ -54,31 +65,33 @@ class EditorScreen(Screen):
         self.grid.bind(minimum_width=self.grid.setter("width"), minimum_height=self.grid.setter("height"))
         scroll.add_widget(self.grid)
 
-        edit_bar = BoxLayout(size_hint_y=None, height=dp(58), spacing=dp(6), padding=(dp(6), dp(5)))
-        self.cell_ref = Label(text="A1", size_hint_x=None, width=dp(58), color=(0.08, 0.1, 0.13, 1))
+        self.edit_bar = BoxLayout(size_hint_y=None, height=dp(58), spacing=dp(6), padding=(dp(6), dp(5)))
+        self.cell_ref = Label(text="A1", size_hint_x=None, width=dp(58), color=(0.88, 0.92, 0.98, 1))
         self.editor_input = TextInput(multiline=False, font_size="16sp")
-        apply_button = Button(text="Apply", size_hint_x=None, width=dp(74))
-        apply_button.bind(on_release=lambda *_: self._apply_edit())
-        edit_bar.add_widget(self.cell_ref)
-        edit_bar.add_widget(self.editor_input)
-        edit_bar.add_widget(apply_button)
+        self.apply_button = Button(text="Apply", size_hint_x=None, width=dp(74))
+        self.apply_button.bind(on_release=lambda *_: self._apply_edit())
+        self.edit_bar.add_widget(self.cell_ref)
+        self.edit_bar.add_widget(self.editor_input)
+        self.edit_bar.add_widget(self.apply_button)
 
-        row_actions = BoxLayout(size_hint_y=None, height=dp(46), spacing=dp(6), padding=(dp(6), 0))
+        self.row_actions = BoxLayout(size_hint_y=None, height=dp(46), spacing=dp(6), padding=(dp(6), 0))
         add_row = Button(text="Add Row")
         add_row.bind(on_release=lambda *_: self._add_row())
         add_col = Button(text="Add Column")
         add_col.bind(on_release=lambda *_: self._add_column())
-        self.status_label = Label(text="", color=(0.18, 0.34, 0.28, 1))
-        row_actions.add_widget(add_row)
-        row_actions.add_widget(add_col)
-        row_actions.add_widget(self.status_label)
+        self.status_label = Label(text="", color=(0.58, 0.88, 0.72, 1))
+        self.row_actions.add_widget(add_row)
+        self.row_actions.add_widget(add_col)
+        self.row_actions.add_widget(self.status_label)
 
-        root.add_widget(toolbar)
+        root.add_widget(self.toolbar)
         root.add_widget(self.sheet_bar)
         root.add_widget(scroll)
-        root.add_widget(edit_bar)
-        root.add_widget(row_actions)
+        root.add_widget(self.edit_bar)
+        root.add_widget(self.row_actions)
         self.add_widget(root)
+        self.bind(size=lambda *_: self._sync_responsive_layout())
+        self._sync_responsive_layout()
 
     def set_workbook(self, workbook):
         self.workbook = workbook
@@ -102,7 +115,7 @@ class EditorScreen(Screen):
             return
 
         if len(self.workbook.sheets) <= 1:
-            label = Label(text=self.workbook.active_sheet.name, color=(0.2, 0.24, 0.28, 1))
+            label = Label(text=self.workbook.active_sheet.name, color=(0.86, 0.9, 0.96, 1))
             self.sheet_bar.add_widget(label)
             return
 
@@ -133,9 +146,9 @@ class EditorScreen(Screen):
         sheet = self.workbook.active_sheet
         rows = sheet.row_count
         cols = sheet.column_count
-        cell_width = dp(128)
-        row_header_width = dp(54)
-        cell_height = dp(42)
+        cell_width = self._cell_width
+        row_header_width = self._row_header_width
+        cell_height = self._cell_height
 
         self.grid.cols = cols + 1
         self.grid.width = row_header_width + cols * cell_width
@@ -172,8 +185,66 @@ class EditorScreen(Screen):
             bold=True,
             size_hint=(None, None),
             size=(width, height),
-            color=(0.1, 0.14, 0.18, 1),
+            color=(0.82, 0.88, 0.95, 1),
         )
+
+    def _sync_responsive_layout(self):
+        width = self.width or dp(360)
+        narrow = width < dp(380)
+        wide = width > dp(600)
+
+        if narrow:
+            toolbar_height = dp(48)
+            control_height = dp(52)
+            action_height = dp(44)
+            self.back_button.width = dp(40)
+            self.save_button.width = dp(62)
+            self.save_as_button.width = dp(78)
+            self.cell_ref.width = dp(48)
+            self.apply_button.width = dp(64)
+            cols_visible = 2
+            row_header_width = dp(42)
+        elif wide:
+            toolbar_height = dp(58)
+            control_height = dp(62)
+            action_height = dp(50)
+            self.back_button.width = dp(52)
+            self.save_button.width = dp(82)
+            self.save_as_button.width = dp(104)
+            self.cell_ref.width = dp(64)
+            self.apply_button.width = dp(86)
+            cols_visible = 4
+            row_header_width = dp(58)
+        else:
+            toolbar_height = dp(52)
+            control_height = dp(58)
+            action_height = dp(46)
+            self.back_button.width = dp(46)
+            self.save_button.width = dp(74)
+            self.save_as_button.width = dp(92)
+            self.cell_ref.width = dp(58)
+            self.apply_button.width = dp(74)
+            cols_visible = 3
+            row_header_width = dp(54)
+
+        self.toolbar.height = toolbar_height
+        self.edit_bar.height = control_height
+        self.row_actions.height = action_height
+        self.sheet_bar.height = dp(40) if narrow else dp(44)
+
+        usable_width = max(width - row_header_width - dp(20), dp(180))
+        cell_width = max(dp(92), min(dp(150), usable_width / cols_visible))
+        cell_height = dp(40) if narrow else dp(42)
+        metrics = (cell_width, row_header_width, cell_height)
+        if metrics == self._last_metrics:
+            return
+
+        self._cell_width, self._row_header_width, self._cell_height = metrics
+        self._last_metrics = metrics
+        if self.workbook:
+            selected = self.selected
+            self._render_grid()
+            self._select_cell(*selected)
 
     def _select_cell(self, row_index, column_index):
         if not self.workbook:

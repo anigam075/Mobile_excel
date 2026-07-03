@@ -12,6 +12,7 @@ from kivy.uix.label import Label
 from kivy.uix.popup import Popup
 from kivy.uix.progressbar import ProgressBar
 from kivy.uix.screenmanager import Screen
+from kivy.uix.scrollview import ScrollView
 
 
 PICKER_ERROR_PREFIX = "__mobilexl_picker_error__:"
@@ -25,26 +26,43 @@ class HomeScreen(Screen):
         self.local_path_label = None
         self.loading_label = None
         self.loading_bar = None
+        self.content = None
         self._build()
 
     def _build(self):
-        root = BoxLayout(orientation="vertical", padding=dp(18), spacing=dp(14))
+        scroll = ScrollView(do_scroll_x=False, do_scroll_y=True, bar_width=dp(4))
+        root = BoxLayout(
+            orientation="vertical",
+            padding=(dp(18), dp(28), dp(18), dp(18)),
+            spacing=dp(14),
+            size_hint_y=None,
+        )
+        root.bind(minimum_height=root.setter("height"))
+        self.content = root
 
         title = Label(
             text="Mobile XL",
             font_size="28sp",
             bold=True,
             size_hint_y=None,
-            height=dp(50),
+            height=dp(56),
+            halign="center",
+            valign="middle",
             color=(0.88, 0.92, 0.98, 1),
         )
+        title.bind(size=self._sync_message_text_size)
+        title.bind(texture_size=lambda instance, *_: self._fit_label_height(instance, dp(56)))
         subtitle = Label(
             text="Open, edit, and save CSV or Excel files.",
             font_size="15sp",
             size_hint_y=None,
             height=dp(34),
+            halign="center",
+            valign="middle",
             color=(0.74, 0.78, 0.86, 1),
         )
+        subtitle.bind(size=self._sync_message_text_size)
+        subtitle.bind(texture_size=lambda instance, *_: self._fit_label_height(instance, dp(34)))
 
         open_button = Button(
             text="Open CSV or Excel File",
@@ -64,6 +82,7 @@ class HomeScreen(Screen):
             color=(0.86, 0.9, 0.96, 1),
         )
         self.path_label.bind(size=self._sync_message_text_size)
+        self.path_label.bind(texture_size=lambda instance, *_: self._fit_label_height(instance, dp(48)))
 
         self.local_path_label = Label(
             text="Local file: none",
@@ -75,6 +94,7 @@ class HomeScreen(Screen):
             color=(0.86, 0.9, 0.96, 1),
         )
         self.local_path_label.bind(size=self._sync_message_text_size)
+        self.local_path_label.bind(texture_size=lambda instance, *_: self._fit_label_height(instance, dp(48)))
 
         self.loading_label = Label(
             text="",
@@ -90,11 +110,14 @@ class HomeScreen(Screen):
         self.message_label = Label(
             text="",
             font_size="14sp",
+            size_hint_y=None,
+            height=dp(44),
             halign="left",
             valign="top",
             color=(1, 0.42, 0.36, 1),
         )
         self.message_label.bind(size=self._sync_message_text_size)
+        self.message_label.bind(texture_size=lambda instance, *_: self._fit_label_height(instance, dp(44)))
 
         root.add_widget(title)
         root.add_widget(subtitle)
@@ -104,10 +127,42 @@ class HomeScreen(Screen):
         root.add_widget(self.loading_label)
         root.add_widget(self.loading_bar)
         root.add_widget(self.message_label)
-        self.add_widget(root)
+        scroll.add_widget(root)
+        self.add_widget(scroll)
+        Clock.schedule_once(lambda *_: self._sync_responsive_layout(), 0)
+        self.bind(size=lambda *_: self._sync_responsive_layout())
 
     def _sync_message_text_size(self, instance, size):
-        instance.text_size = size
+        instance.text_size = (max(size[0] - dp(4), dp(80)), None)
+
+    def _fit_label_height(self, instance, minimum_height):
+        instance.height = max(minimum_height, instance.texture_size[1] + dp(10))
+
+    def _sync_responsive_layout(self):
+        if not self.content:
+            return
+
+        width = self.width or dp(360)
+        if width < dp(340):
+            side_padding = dp(12)
+            top_padding = dp(22)
+            spacing = dp(10)
+        elif width > dp(600):
+            side_padding = dp(32)
+            top_padding = dp(34)
+            spacing = dp(16)
+        else:
+            side_padding = dp(18)
+            top_padding = dp(28)
+            spacing = dp(14)
+
+        self.content.padding = (side_padding, top_padding, side_padding, dp(18))
+        self.content.spacing = spacing
+        usable_width = max(width - side_padding * 2, dp(80))
+        for label in (self.path_label, self.local_path_label, self.message_label):
+            if label:
+                label.text_size = (usable_width, None)
+                self._fit_label_height(label, dp(44))
 
     def show_message(self, message):
         self.message_label.text = message

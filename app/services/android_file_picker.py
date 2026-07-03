@@ -53,18 +53,19 @@ def _on_activity_result(request_code, result_code, data):
         return
 
     try:
-        _handle_activity_result(result_code, data, callback)
+        selection = _selection_from_activity_result(result_code, data)
     except Exception as exc:
-        callback([f"{_ERROR_PREFIX}{type(exc).__name__}: {exc}"])
+        selection = [f"{_ERROR_PREFIX}{type(exc).__name__}: {exc}"]
+
+    _deliver_selection(callback, selection)
 
 
-def _handle_activity_result(result_code, data, callback):
+def _selection_from_activity_result(result_code, data):
     from jnius import autoclass
 
     Activity = autoclass("android.app.Activity")
     if result_code != Activity.RESULT_OK or data is None:
-        callback([])
-        return
+        return []
 
     uri = data.getData()
     if uri is None:
@@ -73,11 +74,16 @@ def _handle_activity_result(result_code, data, callback):
             uri = clip_data.getItemAt(0).getUri()
 
     if uri is None:
-        callback([])
-        return
+        return []
 
     _persist_read_permission(data, uri)
-    callback([uri.toString()])
+    return [uri.toString()]
+
+
+def _deliver_selection(callback, selection):
+    from kivy.clock import Clock
+
+    Clock.schedule_once(lambda *_: callback(selection), 0)
 
 
 def _persist_read_permission(data, uri):
