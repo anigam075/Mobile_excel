@@ -27,6 +27,9 @@ class HomeScreen(Screen):
         self.loading_label = None
         self.loading_bar = None
         self.content = None
+        self.title_label = None
+        self.subtitle_label = None
+        self.open_button = None
         self._build()
 
     def _build(self):
@@ -40,7 +43,7 @@ class HomeScreen(Screen):
         root.bind(minimum_height=root.setter("height"))
         self.content = root
 
-        title = Label(
+        self.title_label = Label(
             text="Mobile XL",
             font_size="28sp",
             bold=True,
@@ -50,9 +53,9 @@ class HomeScreen(Screen):
             valign="middle",
             color=(0.88, 0.92, 0.98, 1),
         )
-        title.bind(size=self._sync_message_text_size)
-        title.bind(texture_size=lambda instance, *_: self._fit_label_height(instance, dp(56)))
-        subtitle = Label(
+        self.title_label.bind(size=self._sync_message_text_size)
+        self.title_label.bind(texture_size=lambda instance, *_: self._fit_label_height(instance, dp(56)))
+        self.subtitle_label = Label(
             text="Open, edit, and save CSV or Excel files.",
             font_size="15sp",
             size_hint_y=None,
@@ -61,16 +64,16 @@ class HomeScreen(Screen):
             valign="middle",
             color=(0.74, 0.78, 0.86, 1),
         )
-        subtitle.bind(size=self._sync_message_text_size)
-        subtitle.bind(texture_size=lambda instance, *_: self._fit_label_height(instance, dp(34)))
+        self.subtitle_label.bind(size=self._sync_message_text_size)
+        self.subtitle_label.bind(texture_size=lambda instance, *_: self._fit_label_height(instance, dp(34)))
 
-        open_button = Button(
+        self.open_button = Button(
             text="Open CSV or Excel File",
             size_hint_y=None,
             height=dp(52),
             background_color=(0.12, 0.34, 0.56, 1),
         )
-        open_button.bind(on_release=lambda *_: self.open_file_picker())
+        self.open_button.bind(on_release=lambda *_: self.open_file_picker())
 
         self.path_label = Label(
             text="Selected file: none",
@@ -119,9 +122,9 @@ class HomeScreen(Screen):
         self.message_label.bind(size=self._sync_message_text_size)
         self.message_label.bind(texture_size=lambda instance, *_: self._fit_label_height(instance, dp(44)))
 
-        root.add_widget(title)
-        root.add_widget(subtitle)
-        root.add_widget(open_button)
+        root.add_widget(self.title_label)
+        root.add_widget(self.subtitle_label)
+        root.add_widget(self.open_button)
         root.add_widget(self.path_label)
         root.add_widget(self.local_path_label)
         root.add_widget(self.loading_label)
@@ -159,6 +162,23 @@ class HomeScreen(Screen):
         self.content.padding = (side_padding, top_padding, side_padding, dp(18))
         self.content.spacing = spacing
         usable_width = max(width - side_padding * 2, dp(80))
+        if platform == "android":
+            self.content.padding = (
+                side_padding,
+                top_padding + dp(14),
+                side_padding,
+                dp(34),
+            )
+
+        if self.title_label:
+            self.title_label.font_size = "26sp" if width < dp(340) else "28sp"
+            self._fit_label_height(self.title_label, dp(56))
+        if self.subtitle_label:
+            self.subtitle_label.font_size = "14sp" if width < dp(340) else "15sp"
+            self._fit_label_height(self.subtitle_label, dp(34))
+        if self.open_button:
+            self.open_button.height = dp(48) if width < dp(340) else dp(52)
+
         for label in (self.path_label, self.local_path_label, self.message_label):
             if label:
                 label.text_size = (usable_width, None)

@@ -2,6 +2,7 @@ from pathlib import Path
 
 from kivy.app import App
 from kivy.metrics import dp
+from kivy.utils import platform
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.button import Button
 from kivy.uix.gridlayout import GridLayout
@@ -28,21 +29,26 @@ class EditorScreen(Screen):
         self.editor_input = None
         self.status_label = None
         self.save_as_input = None
+        self.root_layout = None
         self.toolbar = None
         self.back_button = None
         self.save_button = None
         self.save_as_button = None
+        self.add_row_button = None
+        self.add_col_button = None
         self.edit_bar = None
         self.apply_button = None
         self.row_actions = None
         self._cell_width = dp(128)
         self._row_header_width = dp(54)
         self._cell_height = dp(42)
+        self._cell_font = "14sp"
         self._last_metrics = None
         self._build()
 
     def _build(self):
-        root = BoxLayout(orientation="vertical", spacing=dp(4))
+        root = BoxLayout(orientation="vertical", spacing=dp(4), padding=(0, 0, 0, 0))
+        self.root_layout = root
 
         self.toolbar = BoxLayout(size_hint_y=None, height=dp(52), spacing=dp(6), padding=(dp(6), dp(6)))
         self.back_button = Button(text="<", size_hint_x=None, width=dp(46))
@@ -75,13 +81,13 @@ class EditorScreen(Screen):
         self.edit_bar.add_widget(self.apply_button)
 
         self.row_actions = BoxLayout(size_hint_y=None, height=dp(46), spacing=dp(6), padding=(dp(6), 0))
-        add_row = Button(text="Add Row")
-        add_row.bind(on_release=lambda *_: self._add_row())
-        add_col = Button(text="Add Column")
-        add_col.bind(on_release=lambda *_: self._add_column())
+        self.add_row_button = Button(text="Add Row")
+        self.add_row_button.bind(on_release=lambda *_: self._add_row())
+        self.add_col_button = Button(text="Add Column")
+        self.add_col_button.bind(on_release=lambda *_: self._add_column())
         self.status_label = Label(text="", color=(0.58, 0.88, 0.72, 1))
-        self.row_actions.add_widget(add_row)
-        self.row_actions.add_widget(add_col)
+        self.row_actions.add_widget(self.add_row_button)
+        self.row_actions.add_widget(self.add_col_button)
         self.row_actions.add_widget(self.status_label)
 
         root.add_widget(self.toolbar)
@@ -164,7 +170,7 @@ class EditorScreen(Screen):
                 value = sheet.get_cell(row_index, column_index)
                 button = Button(
                     text=value,
-                    font_size="14sp",
+                    font_size=self._cell_font,
                     halign="left",
                     valign="middle",
                     size_hint=(None, None),
@@ -190,20 +196,33 @@ class EditorScreen(Screen):
 
     def _sync_responsive_layout(self):
         width = self.width or dp(360)
+        height = self.height or dp(640)
         narrow = width < dp(380)
         wide = width > dp(600)
+        short = height < dp(680)
+        very_short = height < dp(580)
+
+        safe_top = dp(14) if platform == "android" else 0
+        safe_bottom = dp(34) if platform == "android" else 0
+        side_padding = dp(4) if narrow else dp(6)
+        if self.root_layout:
+            self.root_layout.padding = (side_padding, safe_top, side_padding, safe_bottom)
+            self.root_layout.spacing = dp(2) if short else dp(4)
 
         if narrow:
-            toolbar_height = dp(48)
+            toolbar_height = dp(52)
             control_height = dp(52)
             action_height = dp(44)
             self.back_button.width = dp(40)
             self.save_button.width = dp(62)
-            self.save_as_button.width = dp(78)
+            self.save_as_button.width = dp(76)
             self.cell_ref.width = dp(48)
             self.apply_button.width = dp(64)
             cols_visible = 2
             row_header_width = dp(42)
+            button_font = "13sp"
+            title_font = "15sp"
+            cell_font = "13sp"
         elif wide:
             toolbar_height = dp(58)
             control_height = dp(62)
@@ -215,8 +234,11 @@ class EditorScreen(Screen):
             self.apply_button.width = dp(86)
             cols_visible = 4
             row_header_width = dp(58)
+            button_font = "15sp"
+            title_font = "17sp"
+            cell_font = "14sp"
         else:
-            toolbar_height = dp(52)
+            toolbar_height = dp(54)
             control_height = dp(58)
             action_height = dp(46)
             self.back_button.width = dp(46)
@@ -226,20 +248,48 @@ class EditorScreen(Screen):
             self.apply_button.width = dp(74)
             cols_visible = 3
             row_header_width = dp(54)
+            button_font = "14sp"
+            title_font = "16sp"
+            cell_font = "14sp"
+
+        if very_short:
+            toolbar_height = max(dp(48), toolbar_height - dp(4))
+            control_height = max(dp(48), control_height - dp(4))
+            action_height = max(dp(40), action_height - dp(4))
+        elif short:
+            toolbar_height = max(dp(50), toolbar_height - dp(2))
+            control_height = max(dp(50), control_height - dp(2))
+
+        self.back_button.font_size = button_font
+        self.save_button.font_size = button_font
+        self.save_as_button.font_size = button_font
+        self.add_row_button.font_size = button_font
+        self.add_col_button.font_size = button_font
+        self.apply_button.font_size = button_font
+        self.title_label.font_size = title_font
+        self.cell_ref.font_size = title_font
+        self.editor_input.font_size = "15sp" if narrow else "16sp"
+        self.status_label.font_size = "12sp" if narrow else "13sp"
 
         self.toolbar.height = toolbar_height
+        self.toolbar.padding = (dp(4), dp(4), dp(4), dp(4)) if narrow else (dp(6), dp(6), dp(6), dp(6))
         self.edit_bar.height = control_height
+        self.edit_bar.padding = (dp(4), dp(4), dp(4), dp(4)) if narrow else (dp(6), dp(5), dp(6), dp(5))
         self.row_actions.height = action_height
-        self.sheet_bar.height = dp(40) if narrow else dp(44)
+        self.row_actions.padding = (dp(4), 0, dp(4), 0) if narrow else (dp(6), 0, dp(6), 0)
+        self.sheet_bar.height = dp(36) if short else (dp(40) if narrow else dp(44))
 
-        usable_width = max(width - row_header_width - dp(20), dp(180))
+        usable_width = max(width - row_header_width - side_padding * 2 - dp(10), dp(160))
         cell_width = max(dp(92), min(dp(150), usable_width / cols_visible))
-        cell_height = dp(40) if narrow else dp(42)
-        metrics = (cell_width, row_header_width, cell_height)
+        if narrow and cols_visible == 2:
+            cell_width = max(dp(86), min(dp(132), usable_width / cols_visible))
+
+        cell_height = dp(36) if very_short else (dp(38) if short or narrow else dp(42))
+        metrics = (cell_width, row_header_width, cell_height, cell_font)
         if metrics == self._last_metrics:
             return
 
-        self._cell_width, self._row_header_width, self._cell_height = metrics
+        self._cell_width, self._row_header_width, self._cell_height, self._cell_font = metrics
         self._last_metrics = metrics
         if self.workbook:
             selected = self.selected
