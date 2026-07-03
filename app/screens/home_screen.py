@@ -69,12 +69,9 @@ class HomeScreen(Screen):
     def open_file_picker(self):
         if platform == "android":
             try:
-                from plyer import filechooser
+                from app.services.android_file_picker import open_android_file
 
-                filechooser.open_file(
-                    on_selection=self._open_android_selection,
-                    filters=[("Spreadsheet files", "*.csv", "*.xlsx")],
-                )
+                open_android_file(self._open_android_selection)
                 return
             except Exception as exc:
                 self.show_message(f"Native file picker unavailable: {exc}")
