@@ -54,21 +54,39 @@ class Sheet:
     def add_row(self):
         self.rows.append([""] * self.column_count)
 
-    def add_column(self):
-        if not self.rows:
-            self.rows.append([""])
-            return
-        for row in self.rows:
-            row.append("")
+    def insert_row_after(self, row_index):
+        insert_at = min(max(row_index + 1, 0), len(self.rows))
+        self.rows.insert(insert_at, [""] * self.column_count)
 
-    def clear_cell(self, row_index, column_index):
-        self.set_cell(row_index, column_index, "")
+    def add_cell_below(self, row_index, column_index):
+        self._ensure_column(column_index)
+        if row_index >= len(self.rows):
+            self.ensure_cell(row_index, column_index)
+        self.rows.append([""] * self.column_count)
+        insert_at = min(row_index + 1, len(self.rows) - 1)
+        for index in range(len(self.rows) - 1, insert_at, -1):
+            self.rows[index][column_index] = self.rows[index - 1][column_index]
+        self.rows[insert_at][column_index] = ""
+
+    def delete_cell(self, row_index, column_index):
+        self._ensure_column(column_index)
+        if row_index >= len(self.rows):
+            return
+        for index in range(row_index, len(self.rows) - 1):
+            self.rows[index][column_index] = self.rows[index + 1][column_index]
+        self.rows[-1][column_index] = ""
 
     def delete_row(self, row_index):
         if 0 <= row_index < len(self.rows):
             del self.rows[row_index]
         if not self.rows:
             self.rows.append([""])
+
+    def _ensure_column(self, column_index):
+        if not self.rows:
+            self.rows.append([])
+        for row_index in range(len(self.rows)):
+            self.ensure_cell(row_index, column_index)
 
 
 @dataclass
@@ -102,12 +120,16 @@ class Workbook:
         self.active_sheet.add_row()
         self.dirty = True
 
-    def add_column(self):
-        self.active_sheet.add_column()
+    def insert_row_after(self, row_index):
+        self.active_sheet.insert_row_after(row_index)
         self.dirty = True
 
-    def clear_cell(self, row_index, column_index):
-        self.active_sheet.clear_cell(row_index, column_index)
+    def add_cell_below(self, row_index, column_index):
+        self.active_sheet.add_cell_below(row_index, column_index)
+        self.dirty = True
+
+    def delete_cell(self, row_index, column_index):
+        self.active_sheet.delete_cell(row_index, column_index)
         self.dirty = True
 
     def delete_row(self, row_index):
