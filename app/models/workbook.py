@@ -61,6 +61,15 @@ class Sheet:
         for row in self.rows:
             row.append("")
 
+    def clear_cell(self, row_index, column_index):
+        self.set_cell(row_index, column_index, "")
+
+    def delete_row(self, row_index):
+        if 0 <= row_index < len(self.rows):
+            del self.rows[row_index]
+        if not self.rows:
+            self.rows.append([""])
+
 
 @dataclass
 class Workbook:
@@ -95,4 +104,12 @@ class Workbook:
 
     def add_column(self):
         self.active_sheet.add_column()
+        self.dirty = True
+
+    def clear_cell(self, row_index, column_index):
+        self.active_sheet.clear_cell(row_index, column_index)
+        self.dirty = True
+
+    def delete_row(self, row_index):
+        self.active_sheet.delete_row(row_index)
         self.dirty = True

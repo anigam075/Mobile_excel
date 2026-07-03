@@ -3,6 +3,7 @@ from urllib.parse import unquote, urlparse
 
 from kivy.app import App
 from kivy.clock import Clock
+from kivy.graphics import Color, Rectangle
 from kivy.metrics import dp
 from kivy.utils import platform
 from kivy.uix.boxlayout import BoxLayout
@@ -34,6 +35,7 @@ class HomeScreen(Screen):
 
     def _build(self):
         scroll = ScrollView(do_scroll_x=False, do_scroll_y=True, bar_width=dp(4))
+        self._paint_background(scroll, (0.035, 0.045, 0.065, 1))
         root = BoxLayout(
             orientation="vertical",
             padding=(dp(18), dp(28), dp(18), dp(18)),
@@ -71,7 +73,11 @@ class HomeScreen(Screen):
             text="Open CSV or Excel File",
             size_hint_y=None,
             height=dp(52),
-            background_color=(0.12, 0.34, 0.56, 1),
+            background_normal="",
+            background_down="",
+            background_color=(0.08, 0.44, 0.85, 1),
+            color=(1, 1, 1, 1),
+            bold=True,
         )
         self.open_button.bind(on_release=lambda *_: self.open_file_picker())
 
@@ -84,6 +90,7 @@ class HomeScreen(Screen):
             valign="top",
             color=(0.86, 0.9, 0.96, 1),
         )
+        self._paint_background(self.path_label, (0.075, 0.095, 0.13, 1))
         self.path_label.bind(size=self._sync_message_text_size)
         self.path_label.bind(texture_size=lambda instance, *_: self._fit_label_height(instance, dp(48)))
 
@@ -96,6 +103,7 @@ class HomeScreen(Screen):
             valign="top",
             color=(0.86, 0.9, 0.96, 1),
         )
+        self._paint_background(self.local_path_label, (0.075, 0.095, 0.13, 1))
         self.local_path_label.bind(size=self._sync_message_text_size)
         self.local_path_label.bind(texture_size=lambda instance, *_: self._fit_label_height(instance, dp(48)))
 
@@ -119,6 +127,7 @@ class HomeScreen(Screen):
             valign="top",
             color=(1, 0.42, 0.36, 1),
         )
+        self._paint_background(self.message_label, (0.12, 0.055, 0.06, 1))
         self.message_label.bind(size=self._sync_message_text_size)
         self.message_label.bind(texture_size=lambda instance, *_: self._fit_label_height(instance, dp(44)))
 
@@ -140,6 +149,13 @@ class HomeScreen(Screen):
 
     def _fit_label_height(self, instance, minimum_height):
         instance.height = max(minimum_height, instance.texture_size[1] + dp(10))
+
+    def _paint_background(self, widget, color):
+        with widget.canvas.before:
+            Color(*color)
+            rect = Rectangle(pos=widget.pos, size=widget.size)
+        widget.bind(pos=lambda instance, *_: setattr(rect, "pos", instance.pos))
+        widget.bind(size=lambda instance, *_: setattr(rect, "size", instance.size))
 
     def _sync_responsive_layout(self):
         if not self.content:

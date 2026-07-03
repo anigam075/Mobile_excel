@@ -1,6 +1,8 @@
 from pathlib import Path
 
 from kivy.app import App
+from kivy.core.window import Window
+from kivy.graphics import Color, Rectangle
 from kivy.metrics import dp
 from kivy.utils import platform
 from kivy.uix.boxlayout import BoxLayout
@@ -30,15 +32,24 @@ class EditorScreen(Screen):
         self.status_label = None
         self.save_as_input = None
         self.root_layout = None
+        self.header_panel = None
         self.toolbar = None
+        self.title_row = None
+        self.action_row = None
         self.back_button = None
         self.save_button = None
         self.save_as_button = None
         self.add_row_button = None
         self.add_col_button = None
+        self.delete_cell_button = None
+        self.delete_row_button = None
         self.edit_bar = None
         self.apply_button = None
+        self.bottom_panel = None
+        self.actions_scroll = None
         self.row_actions = None
+        self.spreadsheet_scroll = None
+        self._keyboard_height = 0
         self._cell_width = dp(128)
         self._row_header_width = dp(54)
         self._cell_height = dp(42)
@@ -49,55 +60,123 @@ class EditorScreen(Screen):
     def _build(self):
         root = BoxLayout(orientation="vertical", spacing=dp(4), padding=(0, 0, 0, 0))
         self.root_layout = root
+        self._paint_background(root, (0.04, 0.05, 0.07, 1))
 
-        self.toolbar = BoxLayout(size_hint_y=None, height=dp(52), spacing=dp(6), padding=(dp(6), dp(6)))
+        self.header_panel = BoxLayout(
+            orientation="vertical",
+            size_hint_y=None,
+            height=dp(92),
+            spacing=dp(6),
+            padding=(dp(8), dp(8), dp(8), dp(6)),
+        )
+        self._paint_background(self.header_panel, (0.06, 0.08, 0.12, 1))
+
+        self.title_row = BoxLayout(size_hint_y=None, height=dp(38), spacing=dp(8))
         self.back_button = Button(text="<", size_hint_x=None, width=dp(46))
+        self._style_button(self.back_button, (0.16, 0.2, 0.28, 1))
         self.back_button.bind(on_release=lambda *_: self._go_home())
         self.title_label = Label(text="No file", halign="left", valign="middle", color=(0.88, 0.92, 0.98, 1))
         self.title_label.bind(size=lambda instance, size: setattr(instance, "text_size", size))
+        self.title_row.add_widget(self.back_button)
+        self.title_row.add_widget(self.title_label)
+
+        self.toolbar = BoxLayout(size_hint_y=None, height=dp(38), spacing=dp(8))
         self.save_button = Button(text="Save", size_hint_x=None, width=dp(74))
+        self._style_button(self.save_button, (0.11, 0.45, 0.7, 1))
         self.save_button.bind(on_release=lambda *_: self._save())
         self.save_as_button = Button(text="Save As", size_hint_x=None, width=dp(92))
+        self._style_button(self.save_as_button, (0.22, 0.38, 0.72, 1))
         self.save_as_button.bind(on_release=lambda *_: self._open_save_as_popup())
-        self.toolbar.add_widget(self.back_button)
-        self.toolbar.add_widget(self.title_label)
+        self.toolbar.add_widget(Label())
         self.toolbar.add_widget(self.save_button)
         self.toolbar.add_widget(self.save_as_button)
+        self.header_panel.add_widget(self.title_row)
+        self.header_panel.add_widget(self.toolbar)
 
         self.sheet_bar = BoxLayout(size_hint_y=None, height=dp(44), spacing=dp(6), padding=(dp(6), 0))
 
-        scroll = ScrollView(do_scroll_x=True, do_scroll_y=True, bar_width=dp(8))
+        self.spreadsheet_scroll = ScrollView(do_scroll_x=True, do_scroll_y=True, bar_width=dp(6))
         self.grid = GridLayout(cols=1, spacing=1, size_hint=(None, None))
         self.grid.bind(minimum_width=self.grid.setter("width"), minimum_height=self.grid.setter("height"))
-        scroll.add_widget(self.grid)
+        self.spreadsheet_scroll.add_widget(self.grid)
 
         self.edit_bar = BoxLayout(size_hint_y=None, height=dp(58), spacing=dp(6), padding=(dp(6), dp(5)))
         self.cell_ref = Label(text="A1", size_hint_x=None, width=dp(58), color=(0.88, 0.92, 0.98, 1))
         self.editor_input = TextInput(multiline=False, font_size="16sp")
         self.apply_button = Button(text="Apply", size_hint_x=None, width=dp(74))
+        self._style_button(self.apply_button, (0.05, 0.52, 0.45, 1))
         self.apply_button.bind(on_release=lambda *_: self._apply_edit())
         self.edit_bar.add_widget(self.cell_ref)
         self.edit_bar.add_widget(self.editor_input)
         self.edit_bar.add_widget(self.apply_button)
 
-        self.row_actions = BoxLayout(size_hint_y=None, height=dp(46), spacing=dp(6), padding=(dp(6), 0))
-        self.add_row_button = Button(text="Add Row")
+        self.actions_scroll = ScrollView(
+            do_scroll_x=True,
+            do_scroll_y=False,
+            size_hint_y=None,
+            height=dp(46),
+            bar_width=dp(3),
+        )
+        self.row_actions = BoxLayout(size_hint=(None, 1), height=dp(46), spacing=dp(6), padding=(dp(6), 0))
+        self.row_actions.bind(minimum_width=self.row_actions.setter("width"))
+        self.add_row_button = Button(text="Add Row", size_hint_x=None, width=dp(104))
+        self._style_button(self.add_row_button, (0.26, 0.39, 0.82, 1))
         self.add_row_button.bind(on_release=lambda *_: self._add_row())
-        self.add_col_button = Button(text="Add Column")
+        self.add_col_button = Button(text="Add Column", size_hint_x=None, width=dp(122))
+        self._style_button(self.add_col_button, (0.38, 0.33, 0.82, 1))
         self.add_col_button.bind(on_release=lambda *_: self._add_column())
-        self.status_label = Label(text="", color=(0.58, 0.88, 0.72, 1))
+        self.delete_cell_button = Button(text="Delete Cell", size_hint_x=None, width=dp(126))
+        self._style_button(self.delete_cell_button, (0.78, 0.32, 0.22, 1))
+        self.delete_cell_button.bind(on_release=lambda *_: self._delete_cell())
+        self.delete_row_button = Button(text="Delete Row", size_hint_x=None, width=dp(124))
+        self._style_button(self.delete_row_button, (0.7, 0.22, 0.34, 1))
+        self.delete_row_button.bind(on_release=lambda *_: self._delete_row())
+        self.status_label = Label(text="", size_hint_x=None, width=dp(132), color=(0.58, 0.88, 0.72, 1))
         self.row_actions.add_widget(self.add_row_button)
         self.row_actions.add_widget(self.add_col_button)
+        self.row_actions.add_widget(self.delete_cell_button)
+        self.row_actions.add_widget(self.delete_row_button)
         self.row_actions.add_widget(self.status_label)
+        self.actions_scroll.add_widget(self.row_actions)
 
-        root.add_widget(self.toolbar)
+        self.bottom_panel = BoxLayout(
+            orientation="vertical",
+            size_hint_y=None,
+            height=dp(110),
+            spacing=dp(4),
+            padding=(0, 0, 0, 0),
+        )
+        self._paint_background(self.bottom_panel, (0.06, 0.07, 0.1, 1))
+        self.bottom_panel.add_widget(self.edit_bar)
+        self.bottom_panel.add_widget(self.actions_scroll)
+
+        root.add_widget(self.header_panel)
         root.add_widget(self.sheet_bar)
-        root.add_widget(scroll)
-        root.add_widget(self.edit_bar)
-        root.add_widget(self.row_actions)
+        root.add_widget(self.spreadsheet_scroll)
+        root.add_widget(self.bottom_panel)
         self.add_widget(root)
         self.bind(size=lambda *_: self._sync_responsive_layout())
+        self.editor_input.bind(focus=self._on_editor_focus)
+        try:
+            Window.softinput_mode = "resize"
+            Window.bind(keyboard_height=self._on_keyboard_height)
+        except Exception:
+            pass
         self._sync_responsive_layout()
+
+    def _style_button(self, button, color, text_color=(1, 1, 1, 1)):
+        button.background_normal = ""
+        button.background_down = ""
+        button.background_color = color
+        button.color = text_color
+        button.bold = True
+
+    def _paint_background(self, widget, color):
+        with widget.canvas.before:
+            Color(*color)
+            rect = Rectangle(pos=widget.pos, size=widget.size)
+        widget.bind(pos=lambda instance, *_: setattr(rect, "pos", instance.pos))
+        widget.bind(size=lambda instance, *_: setattr(rect, "size", instance.size))
 
     def set_workbook(self, workbook):
         self.workbook = workbook
@@ -204,18 +283,26 @@ class EditorScreen(Screen):
 
         safe_top = dp(14) if platform == "android" else 0
         safe_bottom = dp(34) if platform == "android" else 0
+        keyboard_padding = self._keyboard_height if self.editor_input and self.editor_input.focus else 0
         side_padding = dp(4) if narrow else dp(6)
         if self.root_layout:
-            self.root_layout.padding = (side_padding, safe_top, side_padding, safe_bottom)
+            self.root_layout.padding = (
+                side_padding,
+                safe_top,
+                side_padding,
+                max(safe_bottom, keyboard_padding + dp(8)),
+            )
             self.root_layout.spacing = dp(2) if short else dp(4)
 
         if narrow:
-            toolbar_height = dp(52)
+            header_height = dp(92)
+            title_row_height = dp(38)
+            toolbar_height = dp(36)
             control_height = dp(52)
             action_height = dp(44)
             self.back_button.width = dp(40)
             self.save_button.width = dp(62)
-            self.save_as_button.width = dp(76)
+            self.save_as_button.width = dp(82)
             self.cell_ref.width = dp(48)
             self.apply_button.width = dp(64)
             cols_visible = 2
@@ -224,7 +311,9 @@ class EditorScreen(Screen):
             title_font = "15sp"
             cell_font = "13sp"
         elif wide:
-            toolbar_height = dp(58)
+            header_height = dp(104)
+            title_row_height = dp(42)
+            toolbar_height = dp(42)
             control_height = dp(62)
             action_height = dp(50)
             self.back_button.width = dp(52)
@@ -238,7 +327,9 @@ class EditorScreen(Screen):
             title_font = "17sp"
             cell_font = "14sp"
         else:
-            toolbar_height = dp(54)
+            header_height = dp(98)
+            title_row_height = dp(40)
+            toolbar_height = dp(40)
             control_height = dp(58)
             action_height = dp(46)
             self.back_button.width = dp(46)
@@ -253,11 +344,15 @@ class EditorScreen(Screen):
             cell_font = "14sp"
 
         if very_short:
-            toolbar_height = max(dp(48), toolbar_height - dp(4))
+            header_height = max(dp(86), header_height - dp(8))
+            title_row_height = max(dp(34), title_row_height - dp(4))
+            toolbar_height = max(dp(34), toolbar_height - dp(4))
             control_height = max(dp(48), control_height - dp(4))
             action_height = max(dp(40), action_height - dp(4))
         elif short:
-            toolbar_height = max(dp(50), toolbar_height - dp(2))
+            header_height = max(dp(90), header_height - dp(4))
+            title_row_height = max(dp(36), title_row_height - dp(2))
+            toolbar_height = max(dp(36), toolbar_height - dp(2))
             control_height = max(dp(50), control_height - dp(2))
 
         self.back_button.font_size = button_font
@@ -271,13 +366,25 @@ class EditorScreen(Screen):
         self.editor_input.font_size = "15sp" if narrow else "16sp"
         self.status_label.font_size = "12sp" if narrow else "13sp"
 
+        self.header_panel.height = header_height
+        self.header_panel.padding = (dp(6), dp(6), dp(6), dp(5)) if narrow else (dp(8), dp(8), dp(8), dp(6))
+        self.title_row.height = title_row_height
         self.toolbar.height = toolbar_height
-        self.toolbar.padding = (dp(4), dp(4), dp(4), dp(4)) if narrow else (dp(6), dp(6), dp(6), dp(6))
+        self.toolbar.padding = (0, 0, 0, 0)
         self.edit_bar.height = control_height
         self.edit_bar.padding = (dp(4), dp(4), dp(4), dp(4)) if narrow else (dp(6), dp(5), dp(6), dp(5))
+        self.actions_scroll.height = action_height
         self.row_actions.height = action_height
         self.row_actions.padding = (dp(4), 0, dp(4), 0) if narrow else (dp(6), 0, dp(6), 0)
+        self.bottom_panel.height = control_height + action_height + self.bottom_panel.spacing + dp(2)
         self.sheet_bar.height = dp(36) if short else (dp(40) if narrow else dp(44))
+
+        action_button_width = dp(98) if narrow else dp(116)
+        self.add_row_button.width = action_button_width
+        self.add_col_button.width = action_button_width + dp(12)
+        self.delete_cell_button.width = action_button_width + dp(18)
+        self.delete_row_button.width = action_button_width + dp(14)
+        self.status_label.width = dp(116) if narrow else dp(132)
 
         usable_width = max(width - row_header_width - side_padding * 2 - dp(10), dp(160))
         cell_width = max(dp(92), min(dp(150), usable_width / cols_visible))
@@ -295,6 +402,15 @@ class EditorScreen(Screen):
             selected = self.selected
             self._render_grid()
             self._select_cell(*selected)
+
+    def _on_keyboard_height(self, _window, height):
+        self._keyboard_height = max(0, height)
+        self._sync_responsive_layout()
+
+    def _on_editor_focus(self, _instance, focused):
+        if focused and self.spreadsheet_scroll:
+            self.spreadsheet_scroll.scroll_y = 1
+        self._sync_responsive_layout()
 
     def _select_cell(self, row_index, column_index):
         if not self.workbook:
@@ -337,6 +453,31 @@ class EditorScreen(Screen):
         self._render_grid()
         self._select_cell(0, self.workbook.active_sheet.column_count - 1)
         self.refresh_title()
+
+    def _delete_cell(self):
+        if not self.workbook:
+            return
+        row_index, column_index = self.selected
+        self.workbook.clear_cell(row_index, column_index)
+        button = self.cell_buttons.get(self.selected)
+        if button:
+            button.text = ""
+        self.editor_input.text = ""
+        self.refresh_title()
+        self.status_label.text = "Cell deleted"
+
+    def _delete_row(self):
+        if not self.workbook:
+            return
+        row_index, column_index = self.selected
+        self.workbook.delete_row(row_index)
+        next_row = min(row_index, self.workbook.active_sheet.row_count - 1)
+        next_col = min(column_index, self.workbook.active_sheet.column_count - 1)
+        self.selected = (next_row, next_col)
+        self._render_grid()
+        self._select_cell(next_row, next_col)
+        self.refresh_title()
+        self.status_label.text = "Row deleted"
 
     def _save(self):
         ok, message = App.get_running_app().save_current_workbook()

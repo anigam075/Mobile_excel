@@ -12,6 +12,19 @@ class WorkbookTests(unittest.TestCase):
         self.assertEqual(column_name(25), "Z")
         self.assertEqual(column_name(26), "AA")
 
+    def test_clear_cell_and_delete_row(self):
+        workbook = Workbook(
+            sheets=[Sheet(name="Data", rows=[["A", "B"], ["1", "2"], ["3", "4"]])],
+            file_type="csv",
+        )
+
+        workbook.clear_cell(1, 0)
+        self.assertEqual(workbook.active_sheet.get_cell(1, 0), "")
+
+        workbook.delete_row(1)
+        self.assertEqual(workbook.active_sheet.row_count, 2)
+        self.assertEqual(workbook.active_sheet.get_cell(1, 0), "3")
+
     def test_csv_round_trip(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "sample.csv"

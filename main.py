@@ -4,6 +4,7 @@ import traceback
 os.environ.setdefault("KIVY_NO_FILELOG", "1")
 
 from kivy.app import App
+from kivy.core.window import Window
 from kivy.uix.screenmanager import ScreenManager
 
 from app.screens.editor_screen import EditorScreen
@@ -15,6 +16,11 @@ class MobileXLApp(App):
     title = "Mobile XL"
 
     def build(self):
+        try:
+            Window.softinput_mode = "resize"
+        except Exception:
+            pass
+
         self.workbook = None
         self.current_path = None
 
