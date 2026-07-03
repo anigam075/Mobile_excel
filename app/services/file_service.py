@@ -14,7 +14,7 @@ SUPPORTED_EXTENSIONS = {".csv", ".xlsx"}
 def load_workbook(path):
     file_path = Path(path)
     if not file_path.exists():
-        raise FileServiceError("File does not exist.")
+        raise FileServiceError(f"File does not exist: {file_path}")
 
     suffix = file_path.suffix.lower()
     if suffix == ".csv":

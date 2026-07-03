@@ -1,4 +1,5 @@
 _REQUEST_CODE = 42017
+_ERROR_PREFIX = "__mobilexl_picker_error__:"
 _callback = None
 _bound = False
 
@@ -51,6 +52,13 @@ def _on_activity_result(request_code, result_code, data):
     if callback is None:
         return
 
+    try:
+        _handle_activity_result(result_code, data, callback)
+    except Exception as exc:
+        callback([f"{_ERROR_PREFIX}{type(exc).__name__}: {exc}"])
+
+
+def _handle_activity_result(result_code, data, callback):
     from jnius import autoclass
 
     Activity = autoclass("android.app.Activity")

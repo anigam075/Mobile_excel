@@ -1,4 +1,5 @@
 import os
+import traceback
 
 os.environ.setdefault("KIVY_NO_FILELOG", "1")
 
@@ -29,11 +30,19 @@ class MobileXLApp(App):
             self.workbook = load_workbook(path)
             self.current_path = path
         except FileServiceError as exc:
-            self.home_screen.show_message(str(exc))
-            return
+            message = str(exc)
+            self.home_screen.show_message(message)
+            self.manager.current = "home"
+            return False, message
+        except Exception as exc:
+            message = "".join(traceback.format_exception_only(type(exc), exc)).strip()
+            self.home_screen.show_message(message)
+            self.manager.current = "home"
+            return False, message
 
         self.editor_screen.set_workbook(self.workbook)
         self.manager.current = "editor"
+        return True, "File loaded successfully."
 
     def save_current_workbook(self, path=None):
         if not self.workbook:
