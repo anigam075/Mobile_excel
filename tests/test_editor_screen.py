@@ -16,8 +16,17 @@ class EditorScreenTests(unittest.TestCase):
 
         self.assertLess(
             visual_order.index(self.editor.command_panel),
-            visual_order.index(self.editor.spreadsheet_scroll),
+            visual_order.index(self.editor.spreadsheet_panel),
         )
+
+    def test_spreadsheet_has_vertical_and_horizontal_fast_scrollers(self):
+        self.assertIs(
+            self.editor.vertical_fast_scroller.scroll_view,
+            self.editor.spreadsheet_scroll,
+        )
+        self.assertEqual(self.editor.vertical_fast_scroller.orientation, "vertical")
+        self.assertEqual(self.editor.horizontal_fast_scroller.orientation, "horizontal")
+        self.assertEqual(self.editor.spreadsheet_scroll.bar_width, 0)
 
     def test_freeze_toggle_updates_active_sheet_without_dirtying_csv(self):
         workbook = Workbook(

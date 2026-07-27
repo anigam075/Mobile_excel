@@ -19,6 +19,7 @@ Push to `main`, open a pull request, or run the workflow manually. The debug APK
 
 - Open `.csv` and `.xlsx`
 - Scroll spreadsheet data horizontally and vertically
+- Drag expandable fast-scroll thumbs to jump across large row and column ranges
 - Keep large spreadsheets responsive with a virtualized cell canvas
 - Import files in the background into a disk-backed working database
 - Edit selected cells through the bottom edit bar

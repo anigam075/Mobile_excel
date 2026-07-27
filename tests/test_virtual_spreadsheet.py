@@ -3,8 +3,13 @@ import unittest
 
 os.environ.setdefault("KIVY_NO_FILELOG", "1")
 
+from kivy.metrics import dp
 from kivy.uix.scrollview import ScrollView
+from kivy.uix.widget import Widget
 
+from app.widgets.fast_scroller import FastScroller
+from app.widgets.fast_scroller import calculate_thumb_geometry
+from app.widgets.fast_scroller import clamp_scroll_value
 from app.widgets.virtual_spreadsheet import VirtualSpreadsheet
 from app.widgets.virtual_spreadsheet import calculate_visible_range
 
@@ -23,7 +28,55 @@ class RecordingSheet:
         return {}
 
 
+class FakeTouch:
+    def __init__(self, x, y):
+        self.x = x
+        self.y = y
+        self.grab_current = None
+
+    @property
+    def pos(self):
+        return self.x, self.y
+
+    def grab(self, widget):
+        self.grab_current = widget
+
+    def ungrab(self, widget):
+        if self.grab_current is widget:
+            self.grab_current = None
+
+
 class VirtualSpreadsheetRangeTests(unittest.TestCase):
+    def test_fast_scroller_thumb_is_bounded_and_scales_with_content(self):
+        thumb_length, travel = calculate_thumb_geometry(600, 600, 6000, 52)
+
+        self.assertEqual(thumb_length, 60)
+        self.assertEqual(travel, 540)
+        self.assertEqual(calculate_thumb_geometry(600, 600, 500, 52), (0, 0))
+        self.assertEqual(clamp_scroll_value(-1), 0)
+        self.assertEqual(clamp_scroll_value(2), 1)
+
+    def test_vertical_fast_scroller_drag_reaches_bottom(self):
+        scroll = ScrollView(size=(400, 600), scroll_y=1)
+        content = Widget(size_hint=(None, None), size=(1000, 6000))
+        scroll.add_widget(content)
+        scroller = FastScroller(
+            scroll,
+            content,
+            orientation="vertical",
+            pos=(0, 0),
+            size=(30, 600),
+        )
+        scroller._update_geometry()
+        touch = FakeTouch(25, scroller._thumb_position + scroller._thumb_length / 2)
+
+        self.assertTrue(scroller.on_touch_down(touch))
+        touch.y = dp(7) + scroller._thumb_length / 2
+        self.assertTrue(scroller.on_touch_move(touch))
+        self.assertEqual(scroll.scroll_y, 0)
+        self.assertTrue(scroller.on_touch_up(touch))
+        self.assertFalse(scroller.active)
+
     def test_widget_draws_only_a_bounded_viewport(self):
         sheet = RecordingSheet()
         scroll = ScrollView(size=(400, 640))

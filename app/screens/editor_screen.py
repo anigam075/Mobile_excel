@@ -7,6 +7,7 @@ from kivy.metrics import dp, sp
 from kivy.utils import platform
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.button import Button
+from kivy.uix.floatlayout import FloatLayout
 from kivy.uix.label import Label
 from kivy.uix.popup import Popup
 from kivy.uix.screenmanager import Screen
@@ -17,6 +18,7 @@ from kivy.uix.togglebutton import ToggleButton
 
 from app.models.workbook import column_name
 from app.services.background_worker import run_in_background
+from app.widgets.fast_scroller import FastScroller
 from app.widgets.style import apply_rounded_button_style
 from app.widgets.virtual_spreadsheet import VirtualSpreadsheet
 
@@ -78,12 +80,34 @@ class EditorScreen(Screen):
         self.spreadsheet_scroll = ScrollView(
             do_scroll_x=True,
             do_scroll_y=True,
-            bar_width=dp(5),
-            scroll_type=["bars", "content"],
+            bar_width=0,
+            scroll_type=["content"],
         )
         self.spreadsheet = VirtualSpreadsheet(on_cell_selected=self._select_cell)
         self.spreadsheet_scroll.add_widget(self.spreadsheet)
         self.spreadsheet.attach_scroll_view(self.spreadsheet_scroll)
+        self.spreadsheet_panel = FloatLayout()
+        self.spreadsheet_panel.add_widget(self.spreadsheet_scroll)
+        self.horizontal_fast_scroller = FastScroller(
+            self.spreadsheet_scroll,
+            self.spreadsheet,
+            orientation="horizontal",
+            label_provider=self._fast_scroll_column_label,
+            size_hint=(1, None),
+            height=dp(30),
+            pos_hint={"x": 0, "y": 0},
+        )
+        self.vertical_fast_scroller = FastScroller(
+            self.spreadsheet_scroll,
+            self.spreadsheet,
+            orientation="vertical",
+            label_provider=self._fast_scroll_row_label,
+            size_hint=(None, 1),
+            width=dp(30),
+            pos_hint={"right": 1, "y": 0},
+        )
+        self.spreadsheet_panel.add_widget(self.horizontal_fast_scroller)
+        self.spreadsheet_panel.add_widget(self.vertical_fast_scroller)
 
         self.edit_bar = BoxLayout(size_hint_y=None, spacing=dp(6), padding=(dp(6), dp(5)))
         self.cell_ref = Label(text="A1", size_hint_x=None, color=(0.88, 0.92, 0.98, 1))
@@ -149,7 +173,7 @@ class EditorScreen(Screen):
         self.root_layout.add_widget(self.header_panel)
         self.root_layout.add_widget(self.sheet_bar)
         self.root_layout.add_widget(self.command_panel)
-        self.root_layout.add_widget(self.spreadsheet_scroll)
+        self.root_layout.add_widget(self.spreadsheet_panel)
         self.add_widget(self.root_layout)
         self.bind(size=lambda *_: self._sync_responsive_layout())
         self._sync_responsive_layout()
@@ -300,6 +324,31 @@ class EditorScreen(Screen):
 
     def _show_selected_cell(self):
         self.spreadsheet.ensure_cell_visible(*self.selected, align_top=True)
+
+    def _fast_scroll_row_label(self, scroll_y):
+        if not self.workbook:
+            return "Row 1"
+        sheet = self.workbook.active_sheet
+        visible_rows = max(
+            1,
+            int(self.spreadsheet_scroll.height / self.spreadsheet.cell_height) - 1,
+        )
+        last_start = max(0, sheet.row_count - visible_rows)
+        row_number = 1 + round((1 - scroll_y) * last_start)
+        return f"Row {row_number:,}"
+
+    def _fast_scroll_column_label(self, scroll_x):
+        if not self.workbook:
+            return "Column A"
+        sheet = self.workbook.active_sheet
+        usable_width = max(
+            0,
+            self.spreadsheet_scroll.width - self.spreadsheet.row_header_width,
+        )
+        visible_columns = max(1, int(usable_width / self.spreadsheet.cell_width))
+        last_start = max(0, sheet.column_count - visible_columns)
+        column_index = round(scroll_x * last_start)
+        return f"Column {column_name(column_index)}"
 
     def _sync_freeze_control(self):
         if not self.workbook:
