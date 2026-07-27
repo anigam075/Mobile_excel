@@ -15,9 +15,11 @@ class RecordingSheet:
 
     def __init__(self):
         self.requested_range = None
+        self.requested_ranges = []
 
     def get_range(self, start_row, end_row, start_column, end_column):
         self.requested_range = (start_row, end_row, start_column, end_column)
+        self.requested_ranges.append(self.requested_range)
         return {}
 
 
@@ -79,6 +81,48 @@ class VirtualSpreadsheetRangeTests(unittest.TestCase):
         self.assertEqual(end_row, 5000)
         self.assertGreater(start_column, 190)
         self.assertEqual(end_column, 200)
+
+    def test_frozen_top_row_is_queried_and_receives_touches_after_scroll(self):
+        sheet = RecordingSheet()
+        scroll = ScrollView(size=(400, 640))
+        spreadsheet = VirtualSpreadsheet()
+        scroll.add_widget(spreadsheet)
+        spreadsheet.attach_scroll_view(scroll)
+        spreadsheet.set_metrics(100, 50, 40, 14)
+        spreadsheet.set_sheet(sheet)
+        spreadsheet.set_freeze_top_row(True)
+        scroll.scroll_y = 0
+
+        spreadsheet._redraw()
+
+        self.assertTrue(any(request[0:2] == (0, 1) for request in sheet.requested_ranges))
+        _, _, _, _, visible_left, visible_top = spreadsheet.visible_range()
+        selected = spreadsheet.cell_at_local_position(
+            visible_left + spreadsheet.row_header_width + 10,
+            visible_top + spreadsheet.cell_height + 10,
+        )
+        self.assertEqual(selected, (0, 0))
+
+    def test_selected_cell_can_be_aligned_below_frozen_headers(self):
+        sheet = RecordingSheet()
+        scroll = ScrollView(size=(400, 640))
+        spreadsheet = VirtualSpreadsheet()
+        scroll.add_widget(spreadsheet)
+        spreadsheet.attach_scroll_view(scroll)
+        spreadsheet.set_metrics(100, 50, 40, 14)
+        spreadsheet.set_sheet(sheet)
+        spreadsheet.set_freeze_top_row(True)
+        scroll.scroll_y = 0
+
+        spreadsheet.ensure_cell_visible(2500, 5, align_top=True)
+
+        _, _, _, _, _, visible_top = spreadsheet.visible_range()
+        selected_cell_top = (2500 + 1) * spreadsheet.cell_height
+        self.assertAlmostEqual(
+            selected_cell_top - visible_top,
+            spreadsheet.cell_height * 2,
+            delta=1,
+        )
 
 
 if __name__ == "__main__":

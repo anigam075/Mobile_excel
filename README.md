@@ -24,6 +24,7 @@ Push to `main`, open a pull request, or run the workflow manually. The debug APK
 - Edit selected cells through the bottom edit bar
 - Add rows and cells below the current selection
 - Delete selected rows and cells
+- Freeze the top row per sheet, with persistence in `.xlsx` files
 - Save as `.csv` or `.xlsx`
 - Switch sheets for Excel workbooks
 

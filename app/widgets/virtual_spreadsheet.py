@@ -51,6 +51,7 @@ class VirtualSpreadsheet(Widget):
         self.scroll_view = None
         self.on_cell_selected = on_cell_selected
         self.selected = (0, 0)
+        self.freeze_top_row = False
         self.cell_width = dp(128)
         self.row_header_width = dp(54)
         self.cell_height = dp(42)
@@ -77,10 +78,15 @@ class VirtualSpreadsheet(Widget):
     def set_sheet(self, sheet, reset_scroll=False):
         self.sheet = sheet
         self.selected = (0, 0)
+        self.freeze_top_row = bool(getattr(sheet, "freeze_top_row", False))
         self.refresh_dimensions()
         if reset_scroll and self.scroll_view is not None:
             self.scroll_view.scroll_x = 0
             self.scroll_view.scroll_y = 1
+        self.schedule_redraw()
+
+    def set_freeze_top_row(self, enabled):
+        self.freeze_top_row = bool(enabled)
         self.schedule_redraw()
 
     def set_metrics(self, cell_width, row_header_width, cell_height, font_size):
@@ -114,6 +120,40 @@ class VirtualSpreadsheet(Widget):
             min(max(row_index, 0), self.sheet.row_count - 1),
             min(max(column_index, 0), self.sheet.column_count - 1),
         )
+        self.schedule_redraw()
+
+    def ensure_cell_visible(self, row_index, column_index, align_top=False):
+        if self.sheet is None or self.scroll_view is None:
+            return
+
+        horizontal_range = max(0, self.width - self.scroll_view.width)
+        vertical_range = max(0, self.height - self.scroll_view.height)
+        _, _, _, _, visible_left, visible_top = self.visible_range()
+
+        cell_left = self.row_header_width + column_index * self.cell_width
+        cell_right = cell_left + self.cell_width
+        desired_left = visible_left
+        if cell_left < visible_left + self.row_header_width:
+            desired_left = max(0, cell_left - self.row_header_width)
+        elif cell_right > visible_left + self.scroll_view.width:
+            desired_left = min(horizontal_range, cell_right - self.scroll_view.width)
+        if horizontal_range:
+            self.scroll_view.scroll_x = desired_left / horizontal_range
+
+        if self.freeze_top_row and row_index == 0:
+            self.schedule_redraw()
+            return
+
+        sticky_height = self.cell_height * (2 if self.freeze_top_row else 1)
+        cell_top = (row_index + 1) * self.cell_height
+        cell_bottom = cell_top + self.cell_height
+        desired_top = visible_top
+        if align_top or cell_top < visible_top + sticky_height:
+            desired_top = max(0, cell_top - sticky_height)
+        elif cell_bottom > visible_top + self.scroll_view.height:
+            desired_top = min(vertical_range, cell_bottom - self.scroll_view.height)
+        if vertical_range:
+            self.scroll_view.scroll_y = 1 - desired_top / vertical_range
         self.schedule_redraw()
 
     def refresh_data(self):
@@ -162,6 +202,18 @@ class VirtualSpreadsheet(Widget):
             start_column,
             end_column,
         )
+        frozen_values = {}
+        show_frozen_row = self.freeze_top_row and visible_top > 0.5
+        if show_frozen_row:
+            if start_row == 0:
+                frozen_values = values
+            else:
+                frozen_values = self.sheet.get_range(
+                    0,
+                    1,
+                    start_column,
+                    end_column,
+                )
 
         with self.canvas:
             for row_index in range(start_row, end_row):
@@ -207,6 +259,33 @@ class VirtualSpreadsheet(Widget):
                     header_color,
                     str(row_index + 1),
                     (0.84, 0.9, 0.98, 1),
+                    True,
+                )
+
+            if show_frozen_row:
+                frozen_y = fixed_y - self.cell_height
+                for column_index in range(start_column, end_column):
+                    x = self.x + self.row_header_width + column_index * self.cell_width
+                    selected = (0, column_index) == self.selected
+                    background = (0.7, 0.86, 1, 1) if selected else (0.9, 0.95, 1, 1)
+                    self._draw_cell(
+                        x,
+                        frozen_y,
+                        self.cell_width,
+                        self.cell_height,
+                        background,
+                        frozen_values.get((0, column_index), ""),
+                        (0.06, 0.09, 0.14, 1),
+                        True,
+                    )
+                self._draw_cell(
+                    fixed_x,
+                    frozen_y,
+                    self.row_header_width,
+                    self.cell_height,
+                    (0.1, 0.3, 0.42, 1),
+                    "1",
+                    (0.9, 0.96, 1, 1),
                     True,
                 )
 
@@ -283,20 +362,39 @@ class VirtualSpreadsheet(Widget):
         if moved or scrolled:
             return handled
 
-        local_x = touch.x - self.x
-        local_top = self.height - (touch.y - self.y)
+        cell = self.cell_at_local_position(
+            touch.x - self.x,
+            self.height - (touch.y - self.y),
+        )
+        if cell is None:
+            return handled
+        row_index, column_index = cell
+        self.select_cell(row_index, column_index)
+        if self.on_cell_selected is not None:
+            self.on_cell_selected(row_index, column_index)
+        return True
+
+    def cell_at_local_position(self, local_x, local_top):
+        if self.sheet is None or self.scroll_view is None:
+            return None
         _, _, _, _, visible_left, visible_top = self.visible_range()
         if (
             visible_left <= local_x <= visible_left + self.row_header_width
             or visible_top <= local_top <= visible_top + self.cell_height
         ):
-            return handled
+            return None
 
         column_index = math.floor((local_x - self.row_header_width) / self.cell_width)
-        row_index = math.floor(local_top / self.cell_height) - 1
+        frozen_row_top = visible_top + self.cell_height
+        frozen_row_bottom = frozen_row_top + self.cell_height
+        if (
+            self.freeze_top_row
+            and visible_top > 0.5
+            and frozen_row_top <= local_top <= frozen_row_bottom
+        ):
+            row_index = 0
+        else:
+            row_index = math.floor(local_top / self.cell_height) - 1
         if 0 <= row_index < self.sheet.row_count and 0 <= column_index < self.sheet.column_count:
-            self.select_cell(row_index, column_index)
-            if self.on_cell_selected is not None:
-                self.on_cell_selected(row_index, column_index)
-            return True
-        return handled
+            return row_index, column_index
+        return None

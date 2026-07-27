@@ -18,6 +18,7 @@ def column_name(index):
 class Sheet:
     name: str
     rows: list[list[str]] = field(default_factory=list)
+    freeze_top_row: bool = False
 
     @property
     def row_count(self):
@@ -97,6 +98,9 @@ class Sheet:
         if not self.rows:
             self.rows.append([""])
 
+    def set_freeze_top_row(self, enabled):
+        self.freeze_top_row = bool(enabled)
+
     def _ensure_column(self, column_index):
         if not self.rows:
             self.rows.append([])
@@ -150,3 +154,8 @@ class Workbook:
     def delete_row(self, row_index):
         self.active_sheet.delete_row(row_index)
         self.dirty = True
+
+    def set_freeze_top_row(self, enabled):
+        self.active_sheet.set_freeze_top_row(enabled)
+        if self.file_type == "xlsx":
+            self.dirty = True

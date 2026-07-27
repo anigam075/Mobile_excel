@@ -59,7 +59,13 @@ class WorkbookTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "sample.xlsx"
             workbook = Workbook(
-                sheets=[Sheet(name="Data", rows=[["Metric", "Amount"], ["", ""]])],
+                sheets=[
+                    Sheet(
+                        name="Data",
+                        rows=[["Metric", "Amount"], ["", ""]],
+                        freeze_top_row=True,
+                    )
+                ],
                 file_type="xlsx",
             )
             workbook.set_cell(1, 0, "Cost")
@@ -69,8 +75,15 @@ class WorkbookTests(unittest.TestCase):
             loaded = load_workbook(path)
 
             self.assertEqual(loaded.sheets[0].name, "Data")
+            self.assertTrue(loaded.sheets[0].freeze_top_row)
             self.assertEqual(loaded.active_sheet.get_cell(1, 0), "Cost")
             self.assertEqual(loaded.active_sheet.get_cell(1, 1), "900")
+
+            stored = load_workbook(path, storage_dir=directory)
+            try:
+                self.assertTrue(stored.sheets[0].freeze_top_row)
+            finally:
+                stored.close(remove=True)
 
 
 if __name__ == "__main__":

@@ -49,6 +49,13 @@ class WorkbookStoreTests(unittest.TestCase):
             [["A", "B"], ["", ""], ["1", "2"], ["3", "4"]],
         )
 
+    def test_freeze_top_row_is_stored_per_sheet(self):
+        self.workbook.set_freeze_top_row(True)
+
+        self.assertTrue(self.workbook.active_sheet.freeze_top_row)
+        self.assertTrue(self.store.sheet_metadata()[0].freeze_top_row)
+        self.assertFalse(self.workbook.dirty)
+
 
 if __name__ == "__main__":
     unittest.main()

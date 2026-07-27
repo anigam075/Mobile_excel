@@ -12,6 +12,7 @@ class StoredSheet:
     name: str
     _row_count: int = 1
     _column_count: int = 1
+    freeze_top_row: bool = False
 
     @property
     def row_count(self):
@@ -67,6 +68,10 @@ class StoredSheet:
         self.store.delete_row(self.sheet_id, row_index, self.row_count)
         self._row_count = max(1, self._row_count - 1)
 
+    def set_freeze_top_row(self, enabled):
+        self.freeze_top_row = bool(enabled)
+        self.store.set_freeze_top_row(self.sheet_id, self.freeze_top_row)
+
     def iter_rows(self):
         return self.store.iter_rows(self.sheet_id, self.row_count, self.column_count)
 
@@ -120,6 +125,11 @@ class StoredWorkbook:
         self.active_sheet.delete_row(row_index)
         self.dirty = True
 
+    def set_freeze_top_row(self, enabled):
+        self.active_sheet.set_freeze_top_row(enabled)
+        if self.file_type == "xlsx":
+            self.dirty = True
+
     def close(self, remove=False):
         self.store.close(remove=remove)
 
@@ -140,7 +150,8 @@ class WorkbookStore:
                 position INTEGER NOT NULL,
                 name TEXT NOT NULL,
                 row_count INTEGER NOT NULL,
-                column_count INTEGER NOT NULL
+                column_count INTEGER NOT NULL,
+                freeze_top_row INTEGER NOT NULL DEFAULT 0
             );
             CREATE TABLE IF NOT EXISTS cells (
                 sheet_id INTEGER NOT NULL,
@@ -157,11 +168,12 @@ class WorkbookStore:
         stores_dir = Path(root) / "workbooks"
         return cls(stores_dir / f"workbook_{uuid4().hex}.sqlite3")
 
-    def add_sheet(self, name, position):
+    def add_sheet(self, name, position, freeze_top_row=False):
         with self._lock, self._connection:
             cursor = self._connection.execute(
-                "INSERT INTO sheets(position, name, row_count, column_count) VALUES (?, ?, 1, 1)",
-                (position, name),
+                "INSERT INTO sheets(position, name, row_count, column_count, freeze_top_row) "
+                "VALUES (?, ?, 1, 1, ?)",
+                (position, name, int(bool(freeze_top_row))),
             )
         return cursor.lastrowid
 
@@ -192,12 +204,27 @@ class WorkbookStore:
     def sheet_metadata(self):
         with self._lock:
             rows = self._connection.execute(
-                "SELECT id, name, row_count, column_count FROM sheets ORDER BY position"
+                "SELECT id, name, row_count, column_count, freeze_top_row "
+                "FROM sheets ORDER BY position"
             ).fetchall()
         return [
-            StoredSheet(self, sheet_id, name, row_count, column_count)
-            for sheet_id, name, row_count, column_count in rows
+            StoredSheet(
+                self,
+                sheet_id,
+                name,
+                row_count,
+                column_count,
+                bool(freeze_top_row),
+            )
+            for sheet_id, name, row_count, column_count, freeze_top_row in rows
         ]
+
+    def set_freeze_top_row(self, sheet_id, enabled):
+        with self._lock, self._connection:
+            self._connection.execute(
+                "UPDATE sheets SET freeze_top_row = ? WHERE id = ?",
+                (int(bool(enabled)), sheet_id),
+            )
 
     def get_cell(self, sheet_id, row_index, column_index):
         with self._lock:

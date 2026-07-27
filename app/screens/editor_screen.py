@@ -1,6 +1,7 @@
 from pathlib import Path
 
 from kivy.app import App
+from kivy.clock import Clock
 from kivy.graphics import Color, Rectangle
 from kivy.metrics import dp, sp
 from kivy.utils import platform
@@ -12,6 +13,7 @@ from kivy.uix.screenmanager import Screen
 from kivy.uix.scrollview import ScrollView
 from kivy.uix.spinner import Spinner
 from kivy.uix.textinput import TextInput
+from kivy.uix.togglebutton import ToggleButton
 
 from app.models.workbook import column_name
 from app.services.background_worker import run_in_background
@@ -26,6 +28,7 @@ class EditorScreen(Screen):
         self.selected = (0, 0)
         self._mutation_task = None
         self._save_in_progress = False
+        self._syncing_freeze_control = False
         self._last_metrics = None
         self._build()
 
@@ -114,6 +117,9 @@ class EditorScreen(Screen):
         self.delete_row_button = Button(text="Delete Row", size_hint_x=None)
         self._style_button(self.delete_row_button, (0.72, 0.2, 0.34, 1))
         self.delete_row_button.bind(on_release=lambda *_: self._delete_row())
+        self.freeze_button = ToggleButton(text="Freeze Row 1", size_hint_x=None)
+        self._style_button(self.freeze_button, (0.05, 0.48, 0.48, 1))
+        self.freeze_button.bind(state=self._on_freeze_state)
         self.status_label = Label(
             text="",
             size_hint_x=None,
@@ -125,24 +131,25 @@ class EditorScreen(Screen):
             self.add_cell_button,
             self.delete_cell_button,
             self.delete_row_button,
+            self.freeze_button,
             self.status_label,
         ):
             self.row_actions.add_widget(widget)
         self.actions_scroll.add_widget(self.row_actions)
 
-        self.bottom_panel = BoxLayout(
+        self.command_panel = BoxLayout(
             orientation="vertical",
             size_hint_y=None,
             spacing=dp(4),
         )
-        self._paint_background(self.bottom_panel, (0.055, 0.065, 0.1, 1))
-        self.bottom_panel.add_widget(self.edit_bar)
-        self.bottom_panel.add_widget(self.actions_scroll)
+        self._paint_background(self.command_panel, (0.055, 0.065, 0.1, 1))
+        self.command_panel.add_widget(self.edit_bar)
+        self.command_panel.add_widget(self.actions_scroll)
 
         self.root_layout.add_widget(self.header_panel)
         self.root_layout.add_widget(self.sheet_bar)
+        self.root_layout.add_widget(self.command_panel)
         self.root_layout.add_widget(self.spreadsheet_scroll)
-        self.root_layout.add_widget(self.bottom_panel)
         self.add_widget(self.root_layout)
         self.bind(size=lambda *_: self._sync_responsive_layout())
         self._sync_responsive_layout()
@@ -163,6 +170,7 @@ class EditorScreen(Screen):
         self.refresh_title()
         self._refresh_sheet_bar()
         self.spreadsheet.set_sheet(workbook.active_sheet, reset_scroll=True)
+        self._sync_freeze_control()
         self._select_cell(0, 0)
         self.status_label.text = ""
 
@@ -198,6 +206,7 @@ class EditorScreen(Screen):
                 self.workbook.set_active_sheet(index)
                 self.selected = (0, 0)
                 self.spreadsheet.set_sheet(sheet, reset_scroll=True)
+                self._sync_freeze_control()
                 self._select_cell(0, 0)
                 return
 
@@ -249,6 +258,7 @@ class EditorScreen(Screen):
             self.add_cell_button,
             self.delete_cell_button,
             self.delete_row_button,
+            self.freeze_button,
             self.apply_button,
         ):
             button.font_size = button_font
@@ -264,13 +274,14 @@ class EditorScreen(Screen):
         self.edit_bar.height = control_height
         self.actions_scroll.height = action_height
         self.row_actions.height = action_height
-        self.bottom_panel.height = control_height + action_height + dp(6)
+        self.command_panel.height = control_height + action_height + dp(6)
 
         action_width = dp(98) if narrow else dp(116)
         self.add_row_button.width = action_width
         self.add_cell_button.width = action_width + dp(8)
         self.delete_cell_button.width = action_width + dp(18)
         self.delete_row_button.width = action_width + dp(14)
+        self.freeze_button.width = action_width + dp(30)
         self.status_label.width = dp(116) if narrow else dp(132)
 
         usable_width = max(width - row_header_width - side_padding * 2 - dp(10), dp(160))
@@ -281,8 +292,34 @@ class EditorScreen(Screen):
             self._last_metrics = metrics
             self.spreadsheet.set_metrics(*metrics)
 
-    def _on_editor_focus(self, _instance, _focused):
+    def _on_editor_focus(self, _instance, focused):
         self._sync_responsive_layout()
+        if focused and self.workbook:
+            self._show_selected_cell()
+            Clock.schedule_once(lambda *_: self._show_selected_cell(), 0.2)
+
+    def _show_selected_cell(self):
+        self.spreadsheet.ensure_cell_visible(*self.selected, align_top=True)
+
+    def _sync_freeze_control(self):
+        if not self.workbook:
+            return
+        enabled = bool(self.workbook.active_sheet.freeze_top_row)
+        self._syncing_freeze_control = True
+        self.freeze_button.state = "down" if enabled else "normal"
+        self.freeze_button.text = "Unfreeze Row 1" if enabled else "Freeze Row 1"
+        self.spreadsheet.set_freeze_top_row(enabled)
+        self._syncing_freeze_control = False
+
+    def _on_freeze_state(self, button, state):
+        if self._syncing_freeze_control or not self.workbook:
+            return
+        enabled = state == "down"
+        self.workbook.set_freeze_top_row(enabled)
+        self.spreadsheet.set_freeze_top_row(enabled)
+        button.text = "Unfreeze Row 1" if enabled else "Freeze Row 1"
+        self.status_label.text = "Top row frozen" if enabled else "Top row unfrozen"
+        self.refresh_title()
 
     def _select_cell(self, row_index, column_index):
         if not self.workbook:
@@ -366,6 +403,7 @@ class EditorScreen(Screen):
             self.add_cell_button,
             self.delete_cell_button,
             self.delete_row_button,
+            self.freeze_button,
             self.apply_button,
         ):
             button.disabled = disabled
