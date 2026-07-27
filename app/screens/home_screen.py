@@ -15,6 +15,9 @@ from kivy.uix.progressbar import ProgressBar
 from kivy.uix.screenmanager import Screen
 from kivy.uix.scrollview import ScrollView
 
+from app.services.background_worker import run_in_background
+from app.widgets.style import apply_rounded_button_style
+
 
 PICKER_ERROR_PREFIX = "__mobilexl_picker_error__:"
 
@@ -31,11 +34,13 @@ class HomeScreen(Screen):
         self.title_label = None
         self.subtitle_label = None
         self.open_button = None
+        self.cancel_button = None
+        self._resolve_task = None
         self._build()
 
     def _build(self):
         scroll = ScrollView(do_scroll_x=False, do_scroll_y=True, bar_width=dp(4))
-        self._paint_background(scroll, (0.035, 0.045, 0.065, 1))
+        self._paint_background(scroll, (0.035, 0.04, 0.052, 1))
         root = BoxLayout(
             orientation="vertical",
             padding=(dp(18), dp(28), dp(18), dp(18)),
@@ -46,8 +51,9 @@ class HomeScreen(Screen):
         self.content = root
 
         self.title_label = Label(
-            text="Mobile XL",
-            font_size="28sp",
+            text="[b]Mobile[/b] [color=#2ed6b3][b]XL[/b][/color]",
+            markup=True,
+            font_size="30sp",
             bold=True,
             size_hint_y=None,
             height=dp(56),
@@ -70,15 +76,11 @@ class HomeScreen(Screen):
         self.subtitle_label.bind(texture_size=lambda instance, *_: self._fit_label_height(instance, dp(34)))
 
         self.open_button = Button(
-            text="Open CSV or Excel File",
+            text="Open CSV or Excel",
             size_hint_y=None,
             height=dp(52),
-            background_normal="",
-            background_down="",
-            background_color=(0.08, 0.44, 0.85, 1),
-            color=(1, 1, 1, 1),
-            bold=True,
         )
+        apply_rounded_button_style(self.open_button, (0.04, 0.48, 0.78, 1))
         self.open_button.bind(on_release=lambda *_: self.open_file_picker())
 
         self.path_label = Label(
@@ -90,7 +92,7 @@ class HomeScreen(Screen):
             valign="top",
             color=(0.86, 0.9, 0.96, 1),
         )
-        self._paint_background(self.path_label, (0.075, 0.095, 0.13, 1))
+        self._paint_background(self.path_label, (0.055, 0.12, 0.19, 1))
         self.path_label.bind(size=self._sync_message_text_size)
         self.path_label.bind(texture_size=lambda instance, *_: self._fit_label_height(instance, dp(48)))
 
@@ -103,7 +105,7 @@ class HomeScreen(Screen):
             valign="top",
             color=(0.86, 0.9, 0.96, 1),
         )
-        self._paint_background(self.local_path_label, (0.075, 0.095, 0.13, 1))
+        self._paint_background(self.local_path_label, (0.045, 0.14, 0.13, 1))
         self.local_path_label.bind(size=self._sync_message_text_size)
         self.local_path_label.bind(texture_size=lambda instance, *_: self._fit_label_height(instance, dp(48)))
 
@@ -111,22 +113,33 @@ class HomeScreen(Screen):
             text="",
             font_size="14sp",
             size_hint_y=None,
-            height=dp(26),
+            height=0,
             color=(0.43, 0.72, 1, 1),
         )
 
-        self.loading_bar = ProgressBar(max=1, value=0, size_hint_y=None, height=dp(6))
+        self.loading_bar = ProgressBar(max=1, value=0, size_hint_y=None, height=0)
         self.loading_bar.opacity = 0
+
+        self.cancel_button = Button(
+            text="Cancel Loading",
+            size_hint_y=None,
+            height=0,
+            disabled=True,
+            opacity=0,
+        )
+        apply_rounded_button_style(self.cancel_button, (0.68, 0.19, 0.28, 1))
+        self.cancel_button.bind(on_release=lambda *_: self.cancel_loading())
 
         self.message_label = Label(
             text="",
             font_size="14sp",
             size_hint_y=None,
-            height=dp(44),
+            height=0,
             halign="left",
             valign="top",
             color=(1, 0.42, 0.36, 1),
         )
+        self.message_label.opacity = 0
         self._paint_background(self.message_label, (0.12, 0.055, 0.06, 1))
         self.message_label.bind(size=self._sync_message_text_size)
         self.message_label.bind(texture_size=lambda instance, *_: self._fit_label_height(instance, dp(44)))
@@ -138,6 +151,7 @@ class HomeScreen(Screen):
         root.add_widget(self.local_path_label)
         root.add_widget(self.loading_label)
         root.add_widget(self.loading_bar)
+        root.add_widget(self.cancel_button)
         root.add_widget(self.message_label)
         scroll.add_widget(root)
         self.add_widget(scroll)
@@ -148,6 +162,10 @@ class HomeScreen(Screen):
         instance.text_size = (max(size[0] - dp(4), dp(80)), None)
 
     def _fit_label_height(self, instance, minimum_height):
+        if instance is self.message_label and not instance.text:
+            instance.height = 0
+            instance.opacity = 0
+            return
         instance.height = max(minimum_height, instance.texture_size[1] + dp(10))
 
     def _paint_background(self, widget, color):
@@ -187,7 +205,7 @@ class HomeScreen(Screen):
             )
 
         if self.title_label:
-            self.title_label.font_size = "26sp" if width < dp(340) else "28sp"
+            self.title_label.font_size = "27sp" if width < dp(340) else "30sp"
             self._fit_label_height(self.title_label, dp(56))
         if self.subtitle_label:
             self.subtitle_label.font_size = "14sp" if width < dp(340) else "15sp"
@@ -202,6 +220,8 @@ class HomeScreen(Screen):
 
     def show_message(self, message):
         self.message_label.text = message
+        self.message_label.opacity = 1 if message else 0
+        self._fit_label_height(self.message_label, dp(44))
 
     def show_selected_path(self, path):
         self.path_label.text = f"Selected file:\n{path or 'none'}"
@@ -209,12 +229,30 @@ class HomeScreen(Screen):
     def show_local_path(self, path):
         self.local_path_label.text = f"Local file:\n{path or 'none'}"
 
-    def set_loading(self, is_loading, message="Loading file..."):
+    def set_loading(self, is_loading, message="Loading file...", current=None, total=None):
         self.loading_label.text = message if is_loading else ""
+        self.loading_label.height = dp(26) if is_loading else 0
         self.loading_bar.opacity = 1 if is_loading else 0
-        self.loading_bar.value = 0.6 if is_loading else 0
+        self.loading_bar.height = dp(6) if is_loading else 0
+        if is_loading and total:
+            self.loading_bar.value = min(1, max(0, current / total))
+        else:
+            self.loading_bar.value = 0.55 if is_loading else 0
+        self.cancel_button.disabled = not is_loading
+        self.cancel_button.opacity = 1 if is_loading else 0
+        self.cancel_button.height = dp(42) if is_loading else 0
+        self.open_button.disabled = is_loading
+
+    def cancel_loading(self):
+        if self._resolve_task is not None:
+            self._resolve_task.cancel()
+        App.get_running_app().cancel_open()
+        self.loading_label.text = "Cancelling..."
+        self.cancel_button.disabled = True
 
     def open_file_picker(self):
+        if self.open_button.disabled:
+            return
         self.show_message("")
         self.show_selected_path("Waiting for picker selection...")
         self.show_local_path("none")
@@ -284,33 +322,47 @@ class HomeScreen(Screen):
     def _resolve_and_open_android_selection(self, selected):
         running_app = App.get_running_app()
 
-        try:
-            selected = self._resolve_android_selection(selected, running_app.user_data_dir)
-        except Exception as exc:
+        def resolved(path):
+            self._resolve_task = None
+            self.show_local_path(path)
+            self._open_resolved_workbook(path)
+
+        def failed(error):
+            self._resolve_task = None
             self.set_loading(False)
             self.show_local_path("none")
-            self.show_message(f"{type(exc).__name__}: {exc}")
-            return
+            self.show_message(f"{type(error).__name__}: {error}")
 
-        self.show_local_path(selected)
-        self._open_resolved_workbook(selected)
+        self._resolve_task = run_in_background(
+            lambda cancel_event: self._resolve_android_selection(
+                selected,
+                running_app.user_data_dir,
+                cancel_event,
+            ),
+            resolved,
+            failed,
+        )
 
     def _open_resolved_workbook(self, selected):
-        try:
-            success, message = App.get_running_app().open_workbook(selected)
-        except Exception as exc:
-            success = False
-            message = f"{type(exc).__name__}: {exc}"
+        App.get_running_app().open_workbook_async(
+            selected,
+            self._on_open_complete,
+            self._on_open_progress,
+        )
 
+    def _on_open_progress(self, current, total, message):
+        self.set_loading(True, message, current, total)
+
+    def _on_open_complete(self, success, message):
         self.set_loading(False)
         if not success:
             self.show_message(message)
 
-    def _resolve_android_selection(self, selected, target_dir):
+    def _resolve_android_selection(self, selected, target_dir, cancel_event=None):
         if selected.startswith("content://"):
             from app.services.android_file_service import copy_android_content_uri
 
-            return copy_android_content_uri(selected, target_dir)
+            return copy_android_content_uri(selected, target_dir, cancel_event=cancel_event)
 
         if selected.startswith("file://"):
             return unquote(urlparse(selected).path)

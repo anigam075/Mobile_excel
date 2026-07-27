@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from app.services.file_service import FileServiceError
+from app.services.file_service import FileServiceError, OperationCancelled
 
 
 SUPPORTED_MIME_EXTENSIONS = {
@@ -12,7 +12,7 @@ SUPPORTED_MIME_EXTENSIONS = {
 }
 
 
-def copy_android_content_uri(uri_text, target_root):
+def copy_android_content_uri(uri_text, target_root, cancel_event=None):
     try:
         from jnius import autoclass
     except ImportError as exc:
@@ -33,6 +33,7 @@ def copy_android_content_uri(uri_text, target_root):
     output_stream = None
     input_channel = None
     output_channel = None
+    remove_partial = False
 
     try:
         input_stream = resolver.openInputStream(uri)
@@ -45,13 +46,17 @@ def copy_android_content_uri(uri_text, target_root):
         buffer = ByteBuffer.allocate(64 * 1024)
 
         while input_channel.read(buffer) != -1:
+            if cancel_event is not None and cancel_event.is_set():
+                raise OperationCancelled("Operation cancelled.")
             buffer.flip()
             while buffer.hasRemaining():
                 output_channel.write(buffer)
             buffer.clear()
     except FileServiceError:
+        remove_partial = True
         raise
     except Exception as exc:
+        remove_partial = True
         raise FileServiceError(f"Could not copy selected file: {exc}") from exc
     finally:
         for stream in (output_channel, input_channel, output_stream, input_stream):
@@ -60,6 +65,11 @@ def copy_android_content_uri(uri_text, target_root):
                     stream.close()
                 except Exception:
                     pass
+        if remove_partial:
+            try:
+                destination.unlink(missing_ok=True)
+            except OSError:
+                pass
 
     return str(destination)
 

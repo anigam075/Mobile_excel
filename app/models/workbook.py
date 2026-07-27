@@ -47,6 +47,21 @@ class Sheet:
             return ""
         return row[column_index]
 
+    def get_range(self, start_row, end_row, start_column, end_column):
+        values = {}
+        for row_index in range(max(0, start_row), min(end_row, len(self.rows))):
+            row = self.rows[row_index]
+            for column_index in range(max(0, start_column), min(end_column, len(row))):
+                value = row[column_index]
+                if value:
+                    values[(row_index, column_index)] = value
+        return values
+
+    def iter_rows(self):
+        width = self.column_count
+        for row in self.rows:
+            yield row + [""] * (width - len(row))
+
     def set_cell(self, row_index, column_index, value):
         self.ensure_cell(row_index, column_index)
         self.rows[row_index][column_index] = "" if value is None else str(value)

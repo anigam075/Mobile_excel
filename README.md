@@ -19,7 +19,15 @@ Push to `main`, open a pull request, or run the workflow manually. The debug APK
 
 - Open `.csv` and `.xlsx`
 - Scroll spreadsheet data horizontally and vertically
+- Keep large spreadsheets responsive with a virtualized cell canvas
+- Import files in the background into a disk-backed working database
 - Edit selected cells through the bottom edit bar
-- Add rows and columns
+- Add rows and cells below the current selection
+- Delete selected rows and cells
 - Save as `.csv` or `.xlsx`
 - Switch sheets for Excel workbooks
+
+Large files are streamed into SQLite in the app data directory. The editor only
+queries and draws cells near the visible viewport instead of creating a Kivy
+widget for every cell. Saving is streamed through a temporary file and replaces
+the destination only after the export completes.
